@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#f5f7fb" />
+    <title>Trainer Ataoglu</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./vendor/tone/Tone.js"></script>
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand__mark">TA</div>
+          <div>
+            <h1>Trainer Ataoglu</h1>
+            <p>iPad Air 13" için Web MIDI piyano eğitmeni</p>
+          </div>
+        </div>
+
+        <div class="topbar__center">
+          <div class="chip chip--accent" id="currentItemBadge">Hazır</div>
+          <div class="topbar__meta" id="currentMeta">Seçili parça bekleniyor</div>
+        </div>
+
+        <div class="topbar__right">
+          <div class="midi-status" id="midiStatus">
+            <span class="midi-status__dot midi-status__dot--idle"></span>
+            <span id="midiStatusText">MIDI bekleniyor</span>
+          </div>
+          <button class="ghost-btn" id="unlockAudioBtn" type="button">Ses Aç</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar">
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <h2>Eğitim Seviyeleri</h2>
+              <span class="panel__hint">5 seviye</span>
+            </div>
+            <nav class="nav-list" id="levelList"></nav>
+          </section>
+
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <h2>Top 50 Parça</h2>
+              <span class="panel__hint">İlk 3 aktif</span>
+            </div>
+            <div class="catalog-search">
+              <input id="catalogFilter" type="search" placeholder="Parça ara..." aria-label="Parça ara" />
+            </div>
+            <nav class="catalog-list" id="repertoireList"></nav>
+          </section>
+        </aside>
+
+        <main class="main-stage">
+          <section class="stage panel">
+            <div class="panel__header panel__header--stacked">
+              <div>
+                <h2 id="scoreTitle">Bir parça seçin</h2>
+                <p id="scoreSubtitle">MIDI bağlantısı kurulduktan sonra notalar gerçek zamanlı doğrulanır.</p>
+              </div>
+              <div class="score-legend">
+                <span><i class="legend legend--expected"></i> Beklenen</span>
+                <span><i class="legend legend--correct"></i> Doğru</span>
+                <span><i class="legend legend--wrong"></i> Yanlış</span>
+              </div>
+            </div>
+            <div class="score-stage">
+              <div class="score-canvas" id="scoreCanvas">
+                <div class="empty-state" id="emptyState">
+                  <div class="empty-state__icon">♪</div>
+                  <h3>Çalışmaya başlamak için bir egzersiz seçin</h3>
+                  <p>VexFlow notasyonu burada çizilecek. Play ile dinleyebilir, MIDI ile çalabilirsiniz.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel feedback-panel">
+            <div class="feedback-grid">
+              <div class="feedback-card">
+                <span class="feedback-card__label">Beklenen nota</span>
+                <strong id="expectedNoteText">—</strong>
+              </div>
+              <div class="feedback-card">
+                <span class="feedback-card__label">Son MIDI</span>
+                <strong id="lastMidiText">—</strong>
+              </div>
+              <div class="feedback-card">
+                <span class="feedback-card__label">Doğruluk</span>
+                <strong id="accuracyText">0%</strong>
+              </div>
+              <div class="feedback-card">
+                <span class="feedback-card__label">Tempo</span>
+                <strong id="tempoText">72 BPM</strong>
+              </div>
+            </div>
+            <div class="log-list" id="eventLog" aria-live="polite"></div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="bottombar">
+        <div class="transport">
+          <button class="primary-btn" id="playBtn" type="button">Play</button>
+          <button class="secondary-btn" id="pauseBtn" type="button">Pause</button>
+          <button class="secondary-btn" id="stopBtn" type="button">Stop</button>
+        </div>
+
+        <div class="tempo-control">
+          <label for="tempoRange">BPM</label>
+          <input id="tempoRange" type="range" min="40" max="180" value="72" />
+          <output id="tempoValue">72</output>
+        </div>
+
+        <div class="bottom-actions">
+          <button class="ghost-btn" id="reconnectMidiBtn" type="button">MIDI Yenile</button>
+          <button class="ghost-btn" id="demoModeBtn" type="button">Demo Klavye</button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
