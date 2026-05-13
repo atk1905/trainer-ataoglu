@@ -24,6 +24,11 @@ const els = {
   currentMeta: $("currentMeta"),
   midiStatus: $("midiStatus"),
   midiStatusText: $("midiStatusText"),
+  midiFlowText: $("midiFlowText"),
+  midiPortList: $("midiPortList"),
+  midiRawText: $("midiRawText"),
+  midiLastSeenText: $("midiLastSeenText"),
+  midiActivityText: $("midiActivityText"),
   unlockAudioBtn: $("unlockAudioBtn"),
   levelList: $("levelList"),
   repertoireList: $("repertoireList"),
@@ -53,6 +58,8 @@ const state = {
   practiceIndex: 0,
   noteStates: [],
   lastMidi: null,
+  lastMidiAt: 0,
+  lastMidiRaw: "—",
   lastAttempt: null,
   lastWrongIndex: null,
   accuracy: 0,
@@ -73,6 +80,7 @@ const state = {
 };
 
 let wrongResetTimer = null;
+let midiMonitorTimer = null;
 let renderFrame = 0;
 
 function currentItem() {
@@ -124,6 +132,33 @@ function setMidiStatus(kind, text) {
   dot.classList.add(kind === "connected" ? "midi-status__dot--connected" : kind === "error" ? "midi-status__dot--error" : "midi-status__dot--idle");
 }
 
+function updateMidiMonitorUI() {
+  const portNames = state.connectedInputs.map((input) => input.name || "Bilinmeyen cihaz");
+  els.midiPortList.textContent = portNames.length ? portNames.join(" · ") : "—";
+  els.midiRawText.textContent = state.lastMidiRaw || "—";
+  els.midiLastSeenText.textContent = state.lastMidiAt ? `${Math.max(0, Math.round((Date.now() - state.lastMidiAt) / 1000))} sn önce` : "—";
+  const hasPorts = state.connectedInputs.length > 0;
+  const fresh = state.lastMidiAt && Date.now() - state.lastMidiAt < 4000;
+  const flowLabel = !hasPorts
+    ? "Port yok"
+    : fresh
+      ? "Veri akıyor"
+      : "Bağlı ama veri bekleniyor";
+  els.midiFlowText.textContent = flowLabel;
+  els.midiActivityText.textContent = fresh ? "Aktif" : hasPorts ? "Bekliyor" : "Pasif";
+  const dot = els.midiStatus.querySelector(".midi-status__dot");
+  if (dot) {
+    dot.classList.remove("midi-status__dot--connected", "midi-status__dot--idle", "midi-status__dot--error");
+    if (!hasPorts) {
+      dot.classList.add("midi-status__dot--idle");
+    } else if (fresh) {
+      dot.classList.add("midi-status__dot--connected");
+    } else {
+      dot.classList.add("midi-status__dot--idle");
+    }
+  }
+}
+
 function updateStatsUI() {
   const total = state.correctCount + state.wrongCount;
   state.accuracy = total ? Math.round((state.correctCount / total) * 100) : 0;
@@ -144,6 +179,7 @@ function updateStatsUI() {
     els.scoreTitle.textContent = item.title;
     els.scoreSubtitle.textContent = `${item.subtitle} · ${renderLabelFor(item)} · ${flattenSystems(item).map((s) => s.clef === "grand" ? "grand" : s.clef).join(" / ")}`;
   }
+  updateMidiMonitorUI();
 }
 
 function renderLevels() {
@@ -300,8 +336,12 @@ function parseMidiMessage(data) {
 }
 
 function handleMidiMessage(event, portName = "MIDI") {
-  const parsed = parseMidiMessage(event.data || []);
+  const raw = Array.from(event.data || []);
+  const parsed = parseMidiMessage(raw);
   if (!parsed) return;
+
+  state.lastMidiAt = Date.now();
+  state.lastMidiRaw = raw.length ? raw.join(" · ") : "—";
 
   if (parsed.type === "noteOn") {
     const label = midiToNote(parsed.note);
@@ -309,7 +349,41 @@ function handleMidiMessage(event, portName = "MIDI") {
     evaluateAttempt(parsed.note, portName);
   } else if (parsed.type === "noteOff") {
     addLog(`Bırakıldı: ${midiToNote(parsed.note)}`, "info", `MIDI ${parsed.note}`);
+  } else if (parsed.type === "cc") {
+    addLog(`Kontrol: CC${parsed.controller}`, "info", `değer ${parsed.value} · ${portName}`);
+  } else {
+    addLog("MIDI veri paketi", "info", `${state.lastMidiRaw} · ${portName}`);
   }
+
+  updateMidiMonitorUI();
+}
+
+function bindMidiInput(input) {
+  const portName = input.name || "MIDI cihazı";
+  const handler = (event) => handleMidiMessage(event, portName);
+  input.onmidimessage = handler;
+  if (typeof input.open === "function") {
+    return input
+      .open()
+      .catch((error) => {
+        console.warn("MIDI input open failed", portName, error);
+        return null;
+      })
+      .then(() => input);
+  }
+  return Promise.resolve(input);
+}
+
+function scheduleMidiRetry() {
+  const retry = () => {
+    window.removeEventListener("pointerdown", retry);
+    window.removeEventListener("touchstart", retry);
+    window.removeEventListener("keydown", retry);
+    connectMidi();
+  };
+  window.addEventListener("pointerdown", retry, { once: true, passive: true });
+  window.addEventListener("touchstart", retry, { once: true, passive: true });
+  window.addEventListener("keydown", retry, { once: true });
 }
 
 async function connectMidi() {
@@ -323,9 +397,15 @@ async function connectMidi() {
     const access = await navigator.requestMIDIAccess({ sysex: false });
     state.midiAccess = access;
     state.midiEnabled = true;
-    access.onstatechange = refreshMidiPorts;
-    refreshMidiPorts();
-    setMidiStatus("connected", "MIDI hazır");
+    access.onstatechange = () => {
+      refreshMidiPorts();
+    };
+    await refreshMidiPorts();
+    if (state.connectedInputs.length) {
+      setMidiStatus("connected", `${state.connectedInputs.length} cihaz bağlı`);
+    } else {
+      setMidiStatus("idle", "MIDI bekleniyor");
+    }
     toast("MIDI erişimi açıldı", "success");
     addLog("MIDI erişimi açıldı", "success", "requestMIDIAccess");
   } catch (error) {
@@ -334,8 +414,9 @@ async function connectMidi() {
     const permissionDenied = /not granted|denied|permission/i.test(message);
     if (permissionDenied) {
       setMidiStatus("idle", "MIDI izni bekleniyor");
-      toast("MIDI izni verilmedi; bu test ortamında normal olabilir", "info", 3200);
+      toast("MIDI izni verilmedi; uygun yetkili wrapper içinde tekrar deneyin", "info", 3200);
       addLog("MIDI izni bekleniyor", "info", message);
+      scheduleMidiRetry();
     } else {
       setMidiStatus("error", "MIDI bağlantısı başarısız");
       console.error("MIDI error", error);
@@ -345,12 +426,14 @@ async function connectMidi() {
   }
 }
 
-function refreshMidiPorts() {
+async function refreshMidiPorts() {
   if (!state.midiAccess) return;
-  state.connectedInputs = Array.from(state.midiAccess.inputs.values());
-  state.connectedInputs.forEach((input) => {
-    input.onmidimessage = (event) => handleMidiMessage(event, input.name || "MIDI cihazı");
-  });
+  const inputs = Array.from(state.midiAccess.inputs.values());
+  state.connectedInputs = [];
+  for (const input of inputs) {
+    await bindMidiInput(input);
+    state.connectedInputs.push(input);
+  }
   const names = state.connectedInputs.map((input) => input.name || "Bilinmeyen cihaz");
   if (names.length) {
     setMidiStatus("connected", `${names.length} cihaz bağlı`);
@@ -359,6 +442,7 @@ function refreshMidiPorts() {
     setMidiStatus("idle", "MIDI bekleniyor");
     addLog("MIDI girişi yok", "info", "wrapper bekleniyor");
   }
+  updateMidiMonitorUI();
   renderCatalog();
 }
 
@@ -716,14 +800,21 @@ function attachEvents() {
 async function init() {
   attachEvents();
   renderAll();
-  connectMidi();
+  await connectMidi();
 
   const initialItem = currentItem() ?? getInitialSelection();
   if (initialItem) {
     selectItem(initialItem.id);
   }
   updateStatsUI();
-  setMidiStatus("idle", "MIDI bekleniyor");
+  if (!midiMonitorTimer) {
+    midiMonitorTimer = window.setInterval(() => {
+      updateMidiMonitorUI();
+    }, 1000);
+  }
+  if (!state.midiAccess && !state.midiEnabled) {
+    setMidiStatus("idle", "MIDI bekleniyor");
+  }
   if (typeof Tone !== "undefined") {
     addLog("Tone.js yüklendi", "success", Tone.version ?? "");
   }

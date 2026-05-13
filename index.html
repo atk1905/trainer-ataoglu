@@ -100,6 +100,35 @@
                 <strong id="tempoText">72 BPM</strong>
               </div>
             </div>
+
+            <div class="midi-monitor">
+              <div class="panel__header panel__header--stacked midi-monitor__header">
+                <div>
+                  <h2>MIDI Tanı</h2>
+                  <p>Bağlantı var mı, veri akıyor mu, son mesaj neydi burada net görünür.</p>
+                </div>
+                <span class="chip chip--accent" id="midiFlowText">MIDI bekleniyor</span>
+              </div>
+              <div class="midi-monitor__grid">
+                <div class="feedback-card">
+                  <span class="feedback-card__label">Bağlı portlar</span>
+                  <strong id="midiPortList">—</strong>
+                </div>
+                <div class="feedback-card">
+                  <span class="feedback-card__label">Son ham mesaj</span>
+                  <strong id="midiRawText">—</strong>
+                </div>
+                <div class="feedback-card">
+                  <span class="feedback-card__label">Son görülen zaman</span>
+                  <strong id="midiLastSeenText">—</strong>
+                </div>
+                <div class="feedback-card">
+                  <span class="feedback-card__label">Aktif durum</span>
+                  <strong id="midiActivityText">Bekleniyor</strong>
+                </div>
+              </div>
+            </div>
+
             <div class="log-list" id="eventLog" aria-live="polite"></div>
           </section>
         </main>
